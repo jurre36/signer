@@ -1,49 +1,43 @@
-name: Build
+name: Build iOS App
 
 on:
   push:
-  workflow_dispatch:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
 
 jobs:
   build:
-    name: Build
     runs-on: macos-latest
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@main
+      - name: Checkout the code
+        uses: actions/checkout@v3
 
-      - name: Checkout theos/theos
-        uses: actions/checkout@main
+      - name: Set up Xcode
+        uses: maxim-lobanov/setup-xcode@v2
         with:
-          repository: theos/theos
-          ref: master
-          submodules: recursive
-          path: theos
+          xcode-version: '14.x'  # Adjust this based on your Xcode version
 
-      - name: Checkout theos/sdks
-        uses: actions/checkout@main
-        with:
-          repository: theos/sdks
-          ref: master
-          sparse-checkout: iPhoneOS16.5.sdk
-          path: theos/sdks
-
-      - name: Ensure main utils are installed
-        uses: dhinakg/procursus-action@main
-        with:
-          packages: coreutils make xz ldid
-          
-      - name: Build
+      - name: Install Dependencies
         run: |
-          export THEOS=theos
+          # Install CocoaPods dependencies (if applicable)
+          if [ -f "Podfile" ]; then
+            pod install
+          fi
 
-          git submodule update --init
-          bash get_libraries.sh
-          gmake package FINALPACKAGE=1 STRIP=0
+      - name: Build the iOS App
+        run: |
+          xcodebuild -workspace SignApp.xcworkspace \ # Use .xcworkspace if you have a CocoaPods setup, otherwise use .xcodeproj
+                     -scheme SignApp \
+                     -sdk iphonesimulator \
+                     -configuration Debug \
+                     build
 
-      - name: Upload artifact
-        uses: actions/upload-artifact@main
-        with:
-          name: artifact
-          path: packages/*.ipa
+      - name: Run Unit Tests
+        run: |
+          xcodebuild test -workspace SignApp.xcworkspace \
+                          -scheme SignApp \
+                          -destination 'platform=iOS Simulator,name=iPhone 14,OS=16.1'
